@@ -1,4 +1,5 @@
-yamlname: EMA Crossover Scanner
+yaml
+name: EMA Crossover Scanner
 
 on:
   schedule:
