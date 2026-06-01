@@ -1,0 +1,2 @@
+# ema-scanner
+Buy Signals
