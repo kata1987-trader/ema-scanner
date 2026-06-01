@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EMA Scanner — GitHub Actions Workflow
+#
+# What this file does:
+#   GitHub reads this file and automatically runs your Python scanner on a
+#   schedule, using GitHub's own servers (Ubuntu Linux). You don't need to
+#   keep your computer on. Results arrive on Telegram.
+#
+# Key concepts:
+#   on:schedule  → when to run (cron syntax: minute hour day month weekday)
+#   jobs         → what to do (a sequence of steps)
+#   secrets      → your private tokens, stored safely in GitHub — never in code
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: EMA Crossover Scanner
+
+on:
+  # ── Automatic schedule ──────────────────────────────────────────────────────
+  # Runs 15 minutes after each 4h candle closes (UTC times, weekdays only)
+  # Cron format: minute  hour  day-of-month  month  day-of-week(0=Sun,5=Fri)
+  schedule:
+    - cron: '15  0  *  *  1-5'   # 00:15 UTC  →  02:15 CEST
+    - cron: '15  4  *  *  1-5'   # 04:15 UTC  →  06:15 CEST
+    - cron: '15  8  *  *  1-5'   # 08:15 UTC  →  10:15 CEST  (EU open)
+    - cron: '15 12  *  *  1-5'   # 12:15 UTC  →  14:15 CEST  (EU midday)
+    - cron: '15 16  *  *  1-5'   # 16:15 UTC  →  18:15 CEST  (EU close)
+    - cron: '15 20  *  *  1-5'   # 20:15 UTC  →  22:15 CEST  (US close) ★
+
+  # ── Manual trigger ──────────────────────────────────────────────────────────
+  # Adds a "Run workflow" button on GitHub so you can trigger a scan anytime
+  workflow_dispatch:
+    inputs:
+      history:
+        description: 'How many bars to look back'
+        default: '2'
+        required: false
+      interval:
+        description: 'Chart interval (4h / 1h / 1d)'
+        default: '4h'
+        required: false
+
+jobs:
+  scan:
+    name: Run EMA Scanner
+    runs-on: ubuntu-latest   # GitHub provides a fresh Linux machine each run
+
+    steps:
+
+      # Step 1: Download your repository files onto the GitHub machine
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install Python libraries from requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Run the scanner
+      #   ${{ secrets.TELEGRAM_TOKEN }} reads your secret from GitHub —
+      #   it is NEVER visible in logs or code
+      - name: Run scanner
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          HISTORY=${{ github.event.inputs.history || '2' }}
+          INTERVAL=${{ github.event.inputs.interval || '4h' }}
+          python ema_scanner.py --history $HISTORY --interval $INTERVAL --no-csv
