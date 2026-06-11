@@ -540,22 +540,28 @@ def format_telegram(all_signals: list[dict], lookback: int, interval: str, now: 
         "",
     ]
 
+    # Only report signals from the most recent bar that had any signal.
+    # This prevents the same tickers appearing again in the next scheduled run.
+    freshest = min(s["bars_ago"] for s in all_signals)
+    fresh_signals = [s for s in all_signals if s["bars_ago"] == freshest]
+    ago_label = "latest bar" if freshest == 0 else f"{freshest} bar(s) ago"
+
     from collections import defaultdict
     by_index = defaultdict(list)
-    for s in all_signals:
+    for s in fresh_signals:
         by_index[s.get("index", "Unknown")].append(s)
+
+    lines[2] = f"Signals from: *{_esc(ago_label)}*  \\|  Total: *{_esc(len(fresh_signals))}*"
 
     for index_name, signals in by_index.items():
         count = len(signals)
         lines.append(f"*{_esc(index_name)}*  \\({count} signal{'s' if count > 1 else ''}\\)")
-        for s in sorted(signals, key=lambda x: (x["bars_ago"], x["ticker"])):
-            ago   = "now" if s["bars_ago"] == 0 else f"{s['bars_ago']}b ago"
+        for s in sorted(signals, key=lambda x: x["ticker"]):
             url   = tv_url(s["ticker"])
             price = f"{s['price']:.2f}"
-            # MarkdownV2 link: [display](url)  — ticker name as clickable text
             lines.append(
                 f"🟢 [{_esc(s['ticker'])}]({url})"
-                f"  {_esc(s['date'])}  \\({_esc(ago)}\\)"
+                f"  {_esc(s['date'])}"
                 f"  💰 {_esc(price)}"
             )
         lines.append("")
